@@ -3,68 +3,160 @@
  * Plugin Name: Clixtell Tracking & Dynamic Phones
  * Plugin URI: https://www.clixtell.com
  * Description: Clixtell Integration Plugin
- * Version: 2.2
+ * Version: 2.3
  * Author: Clixtell
  * License: GPL2
  */
 
-add_action('admin_menu', 'plugin_admin_add_page');
-function plugin_admin_add_page() {
-	add_options_page('Clixtell', 'Clixtell', 'manage_options', 'clixtell', 'clixtell_options_page');
+defined('ABSPATH') || exit;
+
+define('CLIXTELL_PLUGIN_VERSION', '2.3');
+define('CLIXTELL_OPTION_NAME', 'clixtell_options');
+
+// Add admin menu
+add_action('admin_menu', 'clixtell_admin_add_page');
+function clixtell_admin_add_page() {
+    add_options_page(
+        __('Clixtell Settings', 'clixtell-tracking'),
+        __('Clixtell', 'clixtell-tracking'),
+        'manage_options',
+        'clixtell',
+        'clixtell_options_page'
+    );
 }
 
+// Display options page
 function clixtell_options_page() {
-?>
-	<div>
-		<h2>Clixtell Options</h2>
-		This plugin activates advanceed click fraud detection and requires an active Clixtell account. </br> 
-		Login to your <a href="https://app.clixtell.com">Clixtell dashboard</a> or Read more at <a href="https://clixtell.com">clixtell.com</a>.
-		<form action="options.php" method="post">
-			<?php settings_fields('plugin_options'); ?>
-			<?php do_settings_sections('plugin'); ?>
-			<input name="Submit" type="submit" value="<?php esc_attr_e('Save Changes'); ?>" />
-		</form>
-	</div>
-<?php
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+    ?>
+    <div class="wrap">
+        <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
+
+        <p>
+            <?php echo esc_html__('This plugin activates advanced Click Fraud Protection and requires an active Clixtell account.', 'clixtell-tracking'); ?>
+            <br />
+            <?php
+            printf(
+                wp_kses(
+                    __('Login to your <a href="%1$s">Clixtell dashboard</a> or read more at <a href="%2$s">clixtell.com</a>.', 'clixtell-tracking'),
+                    array('a' => array('href' => array()))
+                ),
+                esc_url('https://app.clixtell.com'),
+                esc_url('https://clixtell.com')
+            );
+            ?>
+        </p>
+
+        <form action="options.php" method="post">
+            <?php
+            settings_fields('clixtell_settings_group');
+            do_settings_sections('clixtell_settings');
+            submit_button();
+            ?>
+        </form>
+    </div>
+    <?php
 }
 
-add_action('admin_init', 'plugin_admin_init');
-function plugin_admin_init(){
-	register_setting( 'plugin_options', 'plugin_options' );
-	add_settings_section('plugin_main', '', '', 'plugin');
-	add_settings_field('plugin_text_string', 'Activate Dynamic Call Tracking', 'plugin_setting_string', 'plugin', 'plugin_main'); 
+// Register settings
+add_action('admin_init', 'clixtell_admin_init');
+function clixtell_admin_init() {
+    register_setting(
+        'clixtell_settings_group',
+        CLIXTELL_OPTION_NAME,
+        'clixtell_sanitize_options'
+    );
+
+    add_settings_section(
+        'clixtell_main_section',
+        '',
+        '__return_false',
+        'clixtell_settings'
+    );
+
+    add_settings_field(
+        'clixtell_dynamic_tracking',
+        __('Activate Dynamic Call Tracking', 'clixtell-tracking'),
+        'clixtell_dynamic_tracking_field',
+        'clixtell_settings',
+        'clixtell_main_section'
+    );
 }
 
-function plugin_setting_string() {
-	$options = get_option('plugin_options', true);
-    $html = '<input type="checkbox" id="checkbox_example" name="plugin_options" value="1"' .checked( 1, $options, false) . '/>';
-    $html .= '<label for="checkbox_example">This will activate Dynamic Phone Insertion. <a href="https://support.clixtell.com">Read More</a></label>';
-
-    echo $html;
-
+// Sanitize options
+function clixtell_sanitize_options($input) {
+    $sanitized = array();
+    $sanitized['dynamic_tracking'] = (!empty($input['dynamic_tracking']) && $input['dynamic_tracking'] === '1') ? '1' : '0';
+    return $sanitized;
 }
 
-add_action( 'wp_head', 'inject_clixtell_scripts' );
-
-function inject_clixtell_scripts() {
-	if (get_option('plugin_options') == "1") {
-		wp_enqueue_script( 'clixtell-dynamic-phones', '//app.clixtell.com/scripts/dynamicphones.js', '', '', false );
-		wp_enqueue_script( 'clixtell-tracking', '//scripts.clixtell.com/track.js', '', '', true );
-	}
-	else {
-		wp_enqueue_script( 'clixtell-tracking', '//scripts.clixtell.com/track.js', '', '', true );
-	}
+// Display checkbox field
+function clixtell_dynamic_tracking_field() {
+    $options = get_option(CLIXTELL_OPTION_NAME, array('dynamic_tracking' => '0'));
+    $current = isset($options['dynamic_tracking']) ? (string) $options['dynamic_tracking'] : '0';
+    ?>
+    <input
+        type="checkbox"
+        id="clixtell_dynamic_tracking"
+        name="<?php echo esc_attr(CLIXTELL_OPTION_NAME); ?>[dynamic_tracking]"
+        value="1"
+        <?php checked('1', $current); ?>
+    />
+    <label for="clixtell_dynamic_tracking">
+        <?php echo esc_html__('This will activate Dynamic Phone Insertion.', 'clixtell-tracking'); ?>
+        <a href="<?php echo esc_url('https://support.clixtell.com'); ?>">
+            <?php echo esc_html__('Read More', 'clixtell-tracking'); ?>
+        </a>
+    </label>
+    <?php
 }
 
-register_activation_hook( __FILE__, 'am_plugin_activate' );
-function am_plugin_activate() {
-    update_option('plugin_options', true );
+// Inject scripts on frontend only
+add_action('wp_enqueue_scripts', 'clixtell_inject_scripts');
+function clixtell_inject_scripts() {
+    $options = get_option(CLIXTELL_OPTION_NAME, array('dynamic_tracking' => '0'));
+    $dynamic_tracking_enabled = !empty($options['dynamic_tracking']) && $options['dynamic_tracking'] === '1';
+
+    if ($dynamic_tracking_enabled) {
+        wp_enqueue_script(
+            'clixtell-dynamic-phones',
+            'https://app.clixtell.com/scripts/dynamicphones.js',
+            array(),
+            CLIXTELL_PLUGIN_VERSION,
+            false
+        );
+    }
+
+    wp_enqueue_script(
+        'clixtell-tracking',
+        'https://scripts.clixtell.com/track.js',
+        array(),
+        CLIXTELL_PLUGIN_VERSION,
+        true
+    );
 }
 
-function my_plugin_update() {
-  update_option('plugin_options', true);
+// Activation hook
+register_activation_hook(__FILE__, 'clixtell_plugin_activate');
+function clixtell_plugin_activate() {
+    $defaults = array(
+        'dynamic_tracking' => '1', // change to '0' if you want OFF by default
+    );
+
+    $existing = get_option(CLIXTELL_OPTION_NAME, null);
+    if ($existing === null) {
+        add_option(CLIXTELL_OPTION_NAME, $defaults);
+        return;
+    }
+
+    if (!is_array($existing)) {
+        // Defensive: if an old version stored a scalar, replace with defaults.
+        update_option(CLIXTELL_OPTION_NAME, $defaults);
+        return;
+    }
+
+    // Merge defaults without overwriting existing keys
+    update_option(CLIXTELL_OPTION_NAME, array_merge($defaults, $existing));
 }
-
-add_action('upgrade_' . plugin_basename(__FILE__), 'my_plugin_update');
-
-?>
