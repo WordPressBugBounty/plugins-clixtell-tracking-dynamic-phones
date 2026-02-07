@@ -25,16 +25,16 @@ With this plugin you can:
 
 An active **Clixtell account** is required to use this plugin.
 
-👉 Learn more at [https://www.clixtell.com](https://www.clixtell.com)
+Learn more at [https://www.clixtell.com](https://www.clixtell.com)
 
 == Features ==
 
-* ✔ Easy WordPress integration
-* ✔ Dynamic Phone Insertion (optional toggle)
-* ✔ Automatic script loading
-* ✔ Clean and secure WordPress Settings API usage
-* ✔ Lightweight and performance-friendly
-* ✔ No theme modification required
+* Easy WordPress integration
+* Dynamic Phone Insertion (optional toggle)
+* Automatic script loading
+* Clean and secure WordPress Settings API usage
+* Lightweight and performance-friendly
+* No theme modification required
 
 == Installation ==
 
@@ -82,6 +82,9 @@ The plugin itself does not store personal data. All tracking and analytics are h
 [https://www.clixtell.com/wp-content/uploads/click-fraud-3.png Clixtell CDR]
 
 == Changelog ==
+
+= 2.4 =
+* Added v2.2 Migration
 
 = 2.3 =
 * Added Dynamic Phone Tracking toggle

@@ -3,17 +3,57 @@
  * Plugin Name: Clixtell Tracking & Dynamic Phones
  * Plugin URI: https://www.clixtell.com
  * Description: Clixtell Integration Plugin
- * Version: 2.3
+ * Version: 2.4
  * Author: Clixtell
  * License: GPL2
  */
 
 defined('ABSPATH') || exit;
 
-define('CLIXTELL_PLUGIN_VERSION', '2.3');
+define('CLIXTELL_PLUGIN_VERSION', '2.4');
 define('CLIXTELL_OPTION_NAME', 'clixtell_options');
 
-// Add admin menu
+/**
+ * 1. MIGRATION LOGIC (Admin only)
+ * Runs only when an admin loads WordPress.
+ * Handles migration from v2.2 (Scalar) to v2.4 (Array)
+ */
+add_action('admin_init', 'clixtell_migrate_legacy_data');
+function clixtell_migrate_legacy_data() {
+    // Get current options
+    $new = get_option(CLIXTELL_OPTION_NAME, array());
+    if (!is_array($new)) {
+        $new = array();
+    }
+
+    // STOP if we have already migrated
+    if (!empty($new['_migrated_from_22'])) {
+        return;
+    }
+
+    // Check if OLD v2.2 settings exist
+    $old = get_option('plugin_options', null);
+
+    // If old settings are gone/null, assume fresh install or already clean.
+    if ($old === null) {
+        $new['_migrated_from_22'] = '1';
+        update_option(CLIXTELL_OPTION_NAME, $new);
+        return;
+    }
+
+    // Normalize old v2.2 value
+    $was_enabled = ($old === '1' || $old === 1 || $old === true || $old === 'true');
+
+    // Apply migration (2.2 wins)
+    $new['dynamic_tracking']  = $was_enabled ? '1' : '0';
+    $new['_migrated_from_22'] = '1';
+
+    update_option(CLIXTELL_OPTION_NAME, $new);
+}
+
+/**
+ * 2. ADMIN MENU
+ */
 add_action('admin_menu', 'clixtell_admin_add_page');
 function clixtell_admin_add_page() {
     add_options_page(
@@ -25,7 +65,9 @@ function clixtell_admin_add_page() {
     );
 }
 
-// Display options page
+/**
+ * 3. SETTINGS PAGE UI
+ */
 function clixtell_options_page() {
     if (!current_user_can('manage_options')) {
         return;
@@ -60,7 +102,9 @@ function clixtell_options_page() {
     <?php
 }
 
-// Register settings
+/**
+ * 4. REGISTER SETTINGS
+ */
 add_action('admin_init', 'clixtell_admin_init');
 function clixtell_admin_init() {
     register_setting(
@@ -85,14 +129,22 @@ function clixtell_admin_init() {
     );
 }
 
-// Sanitize options
+/**
+ * 5. SANITIZATION
+ */
 function clixtell_sanitize_options($input) {
-    $sanitized = array();
-    $sanitized['dynamic_tracking'] = (!empty($input['dynamic_tracking']) && $input['dynamic_tracking'] === '1') ? '1' : '0';
+    $existing = get_option(CLIXTELL_OPTION_NAME, array());
+    $sanitized = is_array($existing) ? $existing : array();
+
+    $sanitized['dynamic_tracking'] =
+        (!empty($input['dynamic_tracking']) && (string)$input['dynamic_tracking'] === '1') ? '1' : '0';
+
     return $sanitized;
 }
 
-// Display checkbox field
+/**
+ * 6. FIELD CALLBACK
+ */
 function clixtell_dynamic_tracking_field() {
     $options = get_option(CLIXTELL_OPTION_NAME, array('dynamic_tracking' => '0'));
     $current = isset($options['dynamic_tracking']) ? (string) $options['dynamic_tracking'] : '0';
@@ -106,14 +158,16 @@ function clixtell_dynamic_tracking_field() {
     />
     <label for="clixtell_dynamic_tracking">
         <?php echo esc_html__('This will activate Dynamic Phone Insertion.', 'clixtell-tracking'); ?>
-        <a href="<?php echo esc_url('https://support.clixtell.com'); ?>">
+        <a href="<?php echo esc_url('https://support.clixtell.com'); ?>" target="_blank" rel="noopener noreferrer">
             <?php echo esc_html__('Read More', 'clixtell-tracking'); ?>
         </a>
     </label>
     <?php
 }
 
-// Inject scripts on frontend only
+/**
+ * 7. FRONTEND SCRIPTS
+ */
 add_action('wp_enqueue_scripts', 'clixtell_inject_scripts');
 function clixtell_inject_scripts() {
     $options = get_option(CLIXTELL_OPTION_NAME, array('dynamic_tracking' => '0'));
@@ -138,25 +192,26 @@ function clixtell_inject_scripts() {
     );
 }
 
-// Activation hook
+/**
+ * 8. ACTIVATION HOOK (Fresh installs only)
+ */
 register_activation_hook(__FILE__, 'clixtell_plugin_activate');
 function clixtell_plugin_activate() {
     $defaults = array(
-        'dynamic_tracking' => '1', // change to '0' if you want OFF by default
+        'dynamic_tracking' => '1',
+        '_migrated_from_22' => '1'
     );
 
     $existing = get_option(CLIXTELL_OPTION_NAME, null);
+
     if ($existing === null) {
         add_option(CLIXTELL_OPTION_NAME, $defaults);
         return;
     }
 
     if (!is_array($existing)) {
-        // Defensive: if an old version stored a scalar, replace with defaults.
         update_option(CLIXTELL_OPTION_NAME, $defaults);
         return;
     }
-
-    // Merge defaults without overwriting existing keys
-    update_option(CLIXTELL_OPTION_NAME, array_merge($defaults, $existing));
 }
+?>
